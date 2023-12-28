@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
-import { Form,FormControl,FormDescription,FormField,FormItem,FormLabel,FormMessage,} from "@/components/ui/form"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage,} from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { eventFormSchema } from "@/lib/validator"
 import * as z from 'zod'
@@ -14,7 +14,11 @@ import {FileUploader} from "./FileUploader"
 import { useState } from "react"
 import Image from "next/image"
 import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import { Checkbox } from "@/components/ui/checkbox"
+import { useUploadThing } from "@/lib/uploadthing"
+import { useRouter } from "next/navigation"
+import { createEvent } from "@/lib/actions/event.actions"
 
 
 type EventFormProps = {
@@ -25,18 +29,47 @@ type EventFormProps = {
 const EventForm = ({ userId, type} : EventFormProps) => {
     const [files, setFiles] = useState<File[]>([])
     const initialValues = eventDefaultValues;
+    const router = useRouter();
+
+    const { startUpload } = useUploadThing('imageUploader')
 
     const form = useForm<z.infer<typeof eventFormSchema>>({
         resolver: zodResolver(eventFormSchema),
         defaultValues: initialValues
-      })
+    })
      
       // 2. Define a submit handler.
-      function onSubmit(values: z.infer<typeof eventFormSchema>) {
-        // Do something with the form values.
-        // ✅ This will be type-safe and validated.
-        console.log(values)
+    async function onSubmit(values: z.infer<typeof eventFormSchema>) {
+
+        let uploadedImageUrl = values.imageUrl;
+
+        if(files.length > 0) {
+            const uploadedImages = await startUpload(files)
+
+            if(!uploadedImages) {
+                return
+            }
+
+            uploadedImageUrl = uploadedImages[0].url;
         }
+
+        if(type === 'Create') {
+            try {
+              const newEvent = await createEvent({
+                event: { ...values, imageUrl: uploadedImageUrl },
+                userId,
+                path: '/profile'
+              })
+      
+              if(newEvent) {
+                form.reset();
+                router.push(`/events/${newEvent._id}`)
+              }
+            } catch (error) {
+              console.log(error);
+            }
+        }
+    }
 
     return (
         <Form {...form}>
@@ -57,7 +90,7 @@ const EventForm = ({ userId, type} : EventFormProps) => {
 
                     <FormField
                         control={form.control}
-                        name="title"
+                        name="categoryId"
                         render={({ field }) => (
                             <FormItem className="w-full">
                                 <FormControl>
@@ -78,7 +111,6 @@ const EventForm = ({ userId, type} : EventFormProps) => {
                                 <FormControl className="h-72">
                                     <Textarea placeholder="Description" {...field} className="textarea rounded-2xl"/>
                                 </FormControl>
-
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -86,7 +118,7 @@ const EventForm = ({ userId, type} : EventFormProps) => {
 
                     <FormField
                         control={form.control}
-                        name="description"
+                        name="imageUrl"
                         render={({ field }) => (
                             <FormItem className="w-full">
                                 <FormControl className="h-72">
@@ -163,23 +195,23 @@ const EventForm = ({ userId, type} : EventFormProps) => {
                             <FormItem className="w-full">
                                 <FormControl>
                                     <div className="flex-center h-[54px] w-full overflow-hidden rounded-full bg-grey-50 px-4 py-2">
-                                        <Image 
-                                            src='/assets/icons/calendar.svg'
+                                        <Image
+                                            src="/assets/icons/calendar.svg"
                                             alt="calendar"
                                             width={24}
                                             height={24}
                                             className="filter-grey"
                                         />
-                                        <p className="ml-3 whitespace-nowrap text-grey-600">End Date: </p>
+                                        <p className="ml-3 whitespace-nowrap text-grey-600">End Date:</p>
                                         <DatePicker 
                                             selected={field.value} 
-                                            onChange= {(date: Date) => field.onChange(date)} 
+                                            onChange={(date: Date) => field.onChange(date)} 
                                             showTimeSelect
                                             timeInputLabel="Time:"
                                             dateFormat="MM/dd/yyyy h:mm aa"
                                             wrapperClassName="datePicker"
                                         />
-                                    </div>   
+                                    </div>  
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -219,7 +251,12 @@ const EventForm = ({ userId, type} : EventFormProps) => {
                                                             <label htmlFor="isFree" className="whitespace-nowrap pr-3 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                                                                 Free Ticket
                                                             </label>
-                                                            <Checkbox id="isFree" className="mr-2 h-5 w-5 border-2 border-primary-500" />
+                                                            <Checkbox 
+                                                                onCheckedChange={field.onChange} 
+                                                                id="isFree" 
+                                                                className="mr-2 h-5 w-5 border-2 border-primary-500" 
+                                                                checked={field.value}
+                                                            />
                                                         </div>   
                                                     </FormControl>
                                                     <FormMessage />
@@ -242,7 +279,7 @@ const EventForm = ({ userId, type} : EventFormProps) => {
                                     <div className="flex-center h-[54px] w-full overflow-hidden rounded-full bg-grey-50 px-4 py-2">
                                         <Image 
                                             src='/assets/icons/link.svg'
-                                            alt="calendar"
+                                            alt="link"
                                             width={24}
                                             height={24}
                                         />
